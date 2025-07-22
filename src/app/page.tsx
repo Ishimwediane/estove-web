@@ -1,103 +1,170 @@
-import Image from "next/image";
+'use client';
+import React, { useState, useEffect } from 'react';
 
-export default function Home() {
+export default function CookingTimer() {
+  const [food, setFood] = useState<string>('rice');
+  const [weight, setWeight] = useState<string>('');
+  const [manualTime, setManualTime] = useState<string>('');
+  const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [isCooking, setIsCooking] = useState<boolean>(false);
+
+  // ✅ Change this to your ESP32 IP
+  const ESP32_IP = '192.168.1.150';
+
+  const estimateTime = () => {
+    const w = parseFloat(weight);
+    let t = 0;
+
+    if (food === 'other') {
+      t = parseFloat(manualTime);
+    } else if (food === 'rice') {
+      t = w * 0.06;
+    } else if (food === 'chicken') {
+      t = w * 0.12;
+    } else if (food === 'potatoes') {
+      t = w * 0.08;
+    }
+
+    if (!isNaN(t) && t > 0) {
+      const seconds = Math.floor(t * 60);
+      setEstimatedTime(seconds);
+      setCountdown(null);
+      setIsCooking(false);
+    } else {
+      setEstimatedTime(null);
+      setCountdown(null);
+      setIsCooking(false);
+    }
+  };
+
+  const startCooking = async () => {
+    if (!estimatedTime) return;
+    setCountdown(estimatedTime);
+    setIsCooking(true);
+
+    try {
+      const response = await fetch(`http://${ESP32_IP}/start-cooking`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `seconds=${estimatedTime}`
+      });
+      const result = await response.text();
+      console.log('ESP32 says:', result);
+      alert('✅ Cooking started on ESP32!');
+    } catch (error) {
+      console.error('Error sending to ESP32:', error);
+      alert('❌ Failed to communicate with ESP32.');
+    }
+  };
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isCooking && countdown !== null && countdown > 0) {
+      timer = setTimeout(() => setCountdown((prev) => (prev !== null ? prev - 1 : null)), 1000);
+    } else if (isCooking && countdown === 0) {
+      setIsCooking(false);
+      alert('✅ Cooking Complete!');
+    }
+    return () => clearTimeout(timer);
+  }, [isCooking, countdown]);
+
+  const formatTime = (seconds: number): string => {
+    const min = Math.floor(seconds / 60);
+    const sec = seconds % 60;
+    return `${min} min ${sec < 10 ? '0' : ''}${sec} sec`;
+  };
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div style={{ maxWidth: '400px', margin: 'auto', padding: '20px', fontFamily: 'Arial' }}>
+      <h1>Smart Cooking Timer</h1>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      <label>Select Food Type:</label>
+      <select
+        value={food}
+        onChange={(e) => {
+          setFood(e.target.value);
+          setEstimatedTime(null);
+          setCountdown(null);
+          setIsCooking(false);
+        }}
+        style={{ width: '100%', marginBottom: '15px', padding: '8px' }}
+      >
+        <option value="rice">Rice</option>
+        <option value="chicken">Chicken</option>
+        <option value="potatoes">Potatoes</option>
+        <option value="other">Other</option>
+      </select>
+
+      {food !== 'other' && (
+        <>
+          <label>Weight (grams):</label>
+          <input
+            type="number"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+            placeholder="e.g. 500"
+            style={{ width: '100%', marginBottom: '15px', padding: '8px' }}
+          />
+        </>
+      )}
+
+      {food === 'other' && (
+        <>
+          <label>Manual Time (minutes):</label>
+          <input
+            type="number"
+            value={manualTime}
+            onChange={(e) => setManualTime(e.target.value)}
+            placeholder="e.g. 10"
+            style={{ width: '100%', marginBottom: '15px', padding: '8px' }}
+          />
+        </>
+      )}
+
+      <button
+        onClick={estimateTime}
+        style={{
+          width: '100%',
+          padding: '12px',
+          background: '#4CAF50',
+          color: 'white',
+          fontWeight: 'bold',
+          border: 'none',
+          marginBottom: '15px',
+          cursor: 'pointer'
+        }}
+      >
+        Estimate Time
+      </button>
+
+      {estimatedTime !== null && !isCooking && (
+        <>
+          <p style={{ fontWeight: 'bold', color: 'green' }}>
+            Estimated Time: {formatTime(estimatedTime)}
+          </p>
+          <button
+            onClick={startCooking}
+            style={{
+              width: '100%',
+              padding: '12px',
+              background: '#2196F3',
+              color: 'white',
+              fontWeight: 'bold',
+              border: 'none',
+              cursor: 'pointer'
+            }}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+            Start Cooking
+          </button>
+        </>
+      )}
+
+      {isCooking && countdown !== null && (
+        <p style={{ fontSize: '18px', marginTop: '20px', color: '#E67E22', fontWeight: 'bold' }}>
+          ⏳ Cooking… Time left: {formatTime(countdown)}
+        </p>
+      )}
     </div>
   );
 }
