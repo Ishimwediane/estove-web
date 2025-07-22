@@ -1,4 +1,5 @@
 'use client';
+
 import React, { useState, useEffect } from 'react';
 
 export default function CookingTimer() {
@@ -8,9 +9,10 @@ export default function CookingTimer() {
   const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isCooking, setIsCooking] = useState<boolean>(false);
+  const [temperature, setTemperature] = useState<string | null>(null);
 
-  // ✅ Change this to your ESP32 IP
-  const ESP32_IP = '192.168.1.150';
+  // Update this to your ESP32 IP address shown in Serial Monitor
+  const ESP32_IP = '192.168.245.137';
 
   const estimateTime = () => {
     const w = parseFloat(weight);
@@ -47,39 +49,66 @@ export default function CookingTimer() {
       const response = await fetch(`http://${ESP32_IP}/start-cooking`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `seconds=${estimatedTime}`
+        body: `seconds=${estimatedTime}`,
       });
       const result = await response.text();
-      console.log('ESP32 says:', result);
-      alert('✅ Cooking started on ESP32!');
+      console.log('ESP32 response:', result);
+      alert('Cooking started on ESP32!');
     } catch (error) {
-      console.error('Error sending to ESP32:', error);
-      alert('❌ Failed to communicate with ESP32.');
+      console.error('Error:', error);
+      alert('Failed to communicate with ESP32');
     }
   };
 
+  const stopCooking = async () => {
+    try {
+      await fetch(`http://${ESP32_IP}/stop-cooking`);
+      setIsCooking(false);
+      setCountdown(null);
+      alert('Cooking stopped');
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Failed to stop cooking');
+    }
+  };
+
+  // Countdown timer
   useEffect(() => {
-    let timer: NodeJS.Timeout;
     if (isCooking && countdown !== null && countdown > 0) {
-      timer = setTimeout(() => setCountdown((prev) => (prev !== null ? prev - 1 : null)), 1000);
+      const timer = setTimeout(() => setCountdown((prev) => (prev !== null ? prev - 1 : null)), 1000);
+      return () => clearTimeout(timer);
     } else if (isCooking && countdown === 0) {
       setIsCooking(false);
-      alert('✅ Cooking Complete!');
+      alert('Cooking complete!');
     }
-    return () => clearTimeout(timer);
   }, [isCooking, countdown]);
 
-  const formatTime = (seconds: number): string => {
+  // Fetch temperature every 3 seconds
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`http://${ESP32_IP}/temperature`);
+        const temp = await response.text();
+        setTemperature(temp);
+      } catch {
+        setTemperature(null);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatTime = (seconds: number) => {
     const min = Math.floor(seconds / 60);
     const sec = seconds % 60;
     return `${min} min ${sec < 10 ? '0' : ''}${sec} sec`;
   };
 
   return (
-    <div style={{ maxWidth: '400px', margin: 'auto', padding: '20px', fontFamily: 'Arial' }}>
+    <div style={{ maxWidth: 400, margin: 'auto', padding: 20, fontFamily: 'Arial' }}>
       <h1>Smart Cooking Timer</h1>
 
-      <label>Select Food Type:</label>
+      <label>Food Type:</label>
       <select
         value={food}
         onChange={(e) => {
@@ -88,7 +117,7 @@ export default function CookingTimer() {
           setCountdown(null);
           setIsCooking(false);
         }}
-        style={{ width: '100%', marginBottom: '15px', padding: '8px' }}
+        style={{ width: '100%', marginBottom: 15, padding: 8 }}
       >
         <option value="rice">Rice</option>
         <option value="chicken">Chicken</option>
@@ -96,7 +125,7 @@ export default function CookingTimer() {
         <option value="other">Other</option>
       </select>
 
-      {food !== 'other' && (
+      {food !== 'other' ? (
         <>
           <label>Weight (grams):</label>
           <input
@@ -104,12 +133,10 @@ export default function CookingTimer() {
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
             placeholder="e.g. 500"
-            style={{ width: '100%', marginBottom: '15px', padding: '8px' }}
+            style={{ width: '100%', marginBottom: 15, padding: 8 }}
           />
         </>
-      )}
-
-      {food === 'other' && (
+      ) : (
         <>
           <label>Manual Time (minutes):</label>
           <input
@@ -117,7 +144,7 @@ export default function CookingTimer() {
             value={manualTime}
             onChange={(e) => setManualTime(e.target.value)}
             placeholder="e.g. 10"
-            style={{ width: '100%', marginBottom: '15px', padding: '8px' }}
+            style={{ width: '100%', marginBottom: 15, padding: 8 }}
           />
         </>
       )}
@@ -126,13 +153,13 @@ export default function CookingTimer() {
         onClick={estimateTime}
         style={{
           width: '100%',
-          padding: '12px',
-          background: '#4CAF50',
+          padding: 12,
+          backgroundColor: '#4CAF50',
           color: 'white',
           fontWeight: 'bold',
           border: 'none',
-          marginBottom: '15px',
-          cursor: 'pointer'
+          marginBottom: 15,
+          cursor: 'pointer',
         }}
       >
         Estimate Time
@@ -140,19 +167,17 @@ export default function CookingTimer() {
 
       {estimatedTime !== null && !isCooking && (
         <>
-          <p style={{ fontWeight: 'bold', color: 'green' }}>
-            Estimated Time: {formatTime(estimatedTime)}
-          </p>
+          <p style={{ fontWeight: 'bold', color: 'green' }}>Estimated Time: {formatTime(estimatedTime)}</p>
           <button
             onClick={startCooking}
             style={{
               width: '100%',
-              padding: '12px',
-              background: '#2196F3',
+              padding: 12,
+              backgroundColor: '#2196F3',
               color: 'white',
               fontWeight: 'bold',
               border: 'none',
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             Start Cooking
@@ -161,9 +186,30 @@ export default function CookingTimer() {
       )}
 
       {isCooking && countdown !== null && (
-        <p style={{ fontSize: '18px', marginTop: '20px', color: '#E67E22', fontWeight: 'bold' }}>
-          ⏳ Cooking… Time left: {formatTime(countdown)}
-        </p>
+        <>
+          <p style={{ fontSize: 18, marginTop: 20, color: '#E67E22', fontWeight: 'bold' }}>
+            ⏳ Cooking... Time left: {formatTime(countdown)}
+          </p>
+          <button
+            onClick={stopCooking}
+            style={{
+              width: '100%',
+              padding: 12,
+              backgroundColor: '#E74C3C',
+              color: 'white',
+              fontWeight: 'bold',
+              border: 'none',
+              cursor: 'pointer',
+              marginTop: 10,
+            }}
+          >
+            Stop Cooking
+          </button>
+        </>
+      )}
+
+      {temperature !== null && (
+        <p style={{ marginTop: 20, fontSize: 16, fontWeight: 'bold' }}>🌡️ Current Temperature: {temperature} °C</p>
       )}
     </div>
   );
