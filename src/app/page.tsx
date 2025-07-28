@@ -12,7 +12,7 @@ export default function CookingTimer() {
   const [temperature, setTemperature] = useState<string | null>(null);
 
   // Update this to your ESP32 IP address shown in Serial Monitor
-  const ESP32_IP = '192.168.245.137';
+  const ESP32_IP = '192.168.6.138';
 
   const estimateTime = () => {
     const w = parseFloat(weight);
