@@ -1,7 +1,54 @@
 'use client'
 import React, { useState, useEffect, useRef } from "react";
 
+// Language translations
+const translations = {
+  en: {
+    title: "Smart Cooking Timer",
+    foodType: "Food Type:",
+    weight: "Weight (grams):",
+    manualTime: "Manual Time (minutes):",
+    estimateTime: "Estimate Time",
+    estimatedTime: "Estimated Time:",
+    startCooking: "Start Cooking",
+    stopCooking: "Stop Cooking",
+    cooking: "Cooking... Time left:",
+    manualMode: "Manual mode ON - Elapsed time:",
+    cookingOff: "Cooking is OFF",
+    currentTemperature: "Current Temperature:",
+    weightPlaceholder: "e.g. 500",
+    timePlaceholder: "e.g. 10",
+    rice: "Rice",
+    chicken: "Chicken",
+    potatoes: "Potatoes",
+    other: "Other",
+    language: "Language"
+  },
+  rw: {
+    title: "Timer yo Guteka Intwari",
+    foodType: "Ubwoko bw'ibiryo:",
+    weight: "Uburemere (gramu):",
+    manualTime: "Igihe cy'ubwenge (iminota):",
+    estimateTime: "Gereranya Igihe",
+    estimatedTime: "Igihe cyo Gereranywa:",
+    startCooking: "Tangira Guteka",
+    stopCooking: "Hagarika Guteka",
+    cooking: "Guteka... Igihe gisigaye:",
+    manualMode: "Uburyo bw'ubwenge BUKIRI - Igihe cyo gutangira:",
+    cookingOff: "Guteka BIHAGARITSE",
+    currentTemperature: "Ubushyuhe bwo kugeza ubu:",
+    weightPlaceholder: "urugero: 500",
+    timePlaceholder: "urugero: 10",
+    rice: "Umuceri",
+    chicken: "Inkoko",
+    potatoes: "Ibirayi",
+    other: "Ibindi",
+    language: "Ururimi"
+  }
+};
+
 export default function CookingTimer() {
+  const [language, setLanguage] = useState<'en' | 'rw'>('en');
   const [food, setFood] = useState<string>("rice");
   const [weight, setWeight] = useState<string>("");
   const [manualTime, setManualTime] = useState<string>("");
@@ -11,6 +58,8 @@ export default function CookingTimer() {
   const [manualMode, setManualMode] = useState<boolean>(false);
   const [relayOn, setRelayOn] = useState<boolean>(false);
   const [temperature, setTemperature] = useState<string | null>(null);
+
+  const t = translations[language];
 
   // For manual mode elapsed timer counting up
   const manualElapsedRef = useRef<number>(0);
@@ -183,128 +232,193 @@ export default function CookingTimer() {
   };
 
   return (
-    <div style={{ maxWidth: 400, margin: "auto", padding: 20, fontFamily: "Arial" }}>
-      <h1>Smart Cooking Timer</h1>
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 py-8 px-4">
+      <div className="max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Main Controls */}
+          <div className="lg:col-span-2">
+            {/* Header with Language Switcher */}
+            <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+              <div className="flex justify-between items-center mb-4">
+                <h1 className="text-2xl font-bold text-gray-800">{t.title}</h1>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600">{t.language}:</span>
+                  <div className="flex bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => setLanguage('en')}
+                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                        language === 'en' 
+                          ? 'bg-blue-500 text-white shadow-sm' 
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      EN
+                    </button>
+                    <button
+                      onClick={() => setLanguage('rw')}
+                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                        language === 'rw' 
+                          ? 'bg-blue-500 text-white shadow-sm' 
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      RW
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-      <label>Food Type:</label>
-      <select
-        value={food}
-        onChange={(e) => {
-          setFood(e.target.value);
-          setEstimatedTime(null);
-          setCountdown(null);
-          setIsCooking(false);
-        }}
-        style={{ width: "100%", marginBottom: 15, padding: 8 }}
-        disabled={relayOn}
-      >
-        <option value="rice">Rice</option>
-        <option value="chicken">Chicken</option>
-        <option value="potatoes">Potatoes</option>
-        <option value="other">Other</option>
-      </select>
+              {/* Food Type Selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t.foodType}
+                </label>
+                <select
+                  value={food}
+                  onChange={(e) => {
+                    setFood(e.target.value);
+                    setEstimatedTime(null);
+                    setCountdown(null);
+                    setIsCooking(false);
+                  }}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  disabled={relayOn}
+                >
+                  <option value="rice">{t.rice}</option>
+                  <option value="chicken">{t.chicken}</option>
+                  <option value="potatoes">{t.potatoes}</option>
+                  <option value="other">{t.other}</option>
+                </select>
+              </div>
 
-      {food !== "other" ? (
-        <label>
-          Weight (grams):
-          <input
-            type="number"
-            value={weight}
-            onChange={(e) => setWeight(e.target.value)}
-            placeholder="e.g. 500"
-            style={{ width: "100%", marginBottom: 15, padding: 8 }}
-            disabled={relayOn}
-          />
-        </label>
-      ) : (
-        <label>
-          Manual Time (minutes):
-          <input
-            type="number"
-            value={manualTime}
-            onChange={(e) => setManualTime(e.target.value)}
-            placeholder="e.g. 10"
-            style={{ width: "100%", marginBottom: 15, padding: 8 }}
-            disabled={relayOn}
-          />
-        </label>
-      )}
+              {/* Weight/Time Input */}
+              <div className="mb-6">
+                {food !== "other" ? (
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {t.weight}
+                  </label>
+                ) : (
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {t.manualTime}
+                  </label>
+                )}
+                <input
+                  type="number"
+                  value={food !== "other" ? weight : manualTime}
+                  onChange={(e) => food !== "other" ? setWeight(e.target.value) : setManualTime(e.target.value)}
+                  placeholder={food !== "other" ? t.weightPlaceholder : t.timePlaceholder}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  disabled={relayOn}
+                />
+              </div>
 
-      <button
-        onClick={estimateTime}
-        style={{
-          width: "100%",
-          padding: 12,
-          backgroundColor: "#4CAF50",
-          color: "white",
-          fontWeight: "bold",
-          border: "none",
-          marginBottom: 15,
-          cursor: relayOn ? "not-allowed" : "pointer",
-          opacity: relayOn ? 0.6 : 1,
-        }}
-        disabled={relayOn}
-      >
-        Estimate Time
-      </button>
+              {/* Estimate Time Button */}
+              <button
+                onClick={estimateTime}
+                className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                disabled={relayOn}
+              >
+                {t.estimateTime}
+              </button>
+            </div>
 
-      {estimatedTime !== null && !isCooking && !relayOn && (
-        <>
-          <p style={{ fontWeight: "bold", color: "green" }}>Estimated Time: {formatTime(estimatedTime)}</p>
-          <button
-            onClick={startCooking}
-            style={{
-              width: "100%",
-              padding: 12,
-              backgroundColor: "#2196F3",
-              color: "white",
-              fontWeight: "bold",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            Start Cooking
-          </button>
-        </>
-      )}
+            {/* Estimated Time Display */}
+            {estimatedTime !== null && !isCooking && !relayOn && (
+              <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+                <p className="text-lg font-bold text-green-600 mb-4">
+                  {t.estimatedTime} {formatTime(estimatedTime)}
+                </p>
+                <button
+                  onClick={startCooking}
+                  className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+                >
+                  {t.startCooking}
+                </button>
+              </div>
+            )}
 
-      {(isCooking || manualMode) && (
-        <>
-          <p
-            style={{
-              fontSize: 18,
-              marginTop: 20,
-              color: manualMode ? "#27ae60" : "#E67E22",
-              fontWeight: "bold",
-            }}
-          >
-            {manualMode
-              ? `🔌 Manual mode ON - Elapsed time: ${formatTime(countdown ?? 0)}`
-              : `⏳ Cooking... Time left: ${formatTime(countdown ?? 0)}`}
-          </p>
-          <button
-            onClick={stopCooking}
-            style={{
-              width: "100%",
-              padding: 12,
-              backgroundColor: "#E74C3C",
-              color: "white",
-              fontWeight: "bold",
-              border: "none",
-              cursor: "pointer",
-              marginTop: 10,
-            }}
-          >
-            Stop Cooking
-          </button>
-        </>
-      )}
+            {/* Cooking Status */}
+            {(isCooking || manualMode) && (
+              <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+                <div className={`text-lg font-bold mb-4 ${
+                  manualMode ? 'text-green-600' : 'text-orange-600'
+                }`}>
+                  {manualMode
+                    ? `🔌 ${t.manualMode} ${formatTime(countdown ?? 0)}`
+                    : `⏳ ${t.cooking} ${formatTime(countdown ?? 0)}`}
+                </div>
+                <button
+                  onClick={stopCooking}
+                  className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+                >
+                  {t.stopCooking}
+                </button>
+              </div>
+            )}
+          </div>
 
-      {!relayOn && <p>Cooking is OFF</p>}
+          {/* Right Column - Status and Temperature */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-8">
+              {/* Status Indicators */}
+              <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Status</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-sm font-medium text-gray-600">Cooking:</span>
+                  <div className={`flex items-center space-x-2 ${
+                    relayOn ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    <div className={`w-3 h-3 rounded-full ${
+                      relayOn ? 'bg-green-500' : 'bg-red-500'
+                    }`}></div>
+                    <span className="font-semibold">
+                      {relayOn ? (manualMode ? 'Manual Mode' : 'Active') : t.cookingOff}
+                    </span>
+                  </div>
+                </div>
 
-      {temperature !== null && (
-        <p style={{ marginTop: 20, fontSize: 16, fontWeight: "bold" }}>🌡️ Current Temperature: {temperature} °C</p>
-      )}
+                {/* Temperature Display */}
+                {temperature !== null && (
+                  <div className="flex items-center space-x-3 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl">
+                    <div className="text-2xl">🌡️</div>
+                    <div>
+                      <div className="text-sm text-gray-600">{t.currentTemperature}</div>
+                      <div className="text-xl font-bold text-blue-600">{temperature} °C</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Additional Status Info */}
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <h2 className="text-lg font-bold text-gray-800 mb-4">System Info</h2>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Mode:</span>
+                    <span className="font-semibold text-gray-800">
+                      {manualMode ? 'Manual' : 'Timer'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Food Type:</span>
+                    <span className="font-semibold text-gray-800 capitalize">
+                      {t[food as keyof typeof t]}
+                    </span>
+                  </div>
+                  {countdown !== null && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Time:</span>
+                      <span className="font-semibold text-gray-800">
+                        {formatTime(countdown)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
