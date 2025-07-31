@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 // Language translations
 const translations = {
   en: {
-    title: "Smart Cooking Timer",
+    title: "Welcome to Electronic Oven",
     foodType: "Food Type:",
     weight: "Weight (grams):",
     manualTime: "Manual Time (minutes):",
@@ -18,14 +18,24 @@ const translations = {
     currentTemperature: "Current Temperature:",
     weightPlaceholder: "e.g. 500",
     timePlaceholder: "e.g. 10",
-    rice: "Rice",
+    bread: "Bread",
     chicken: "Chicken",
     potatoes: "Potatoes",
+    pizza: "Pizza",
     other: "Other",
-    language: "Language"
+    language: "Language",
+    status: "Status",
+    cookingStatus: "Cooking:",
+    systemInfo: "System Info",
+    mode: "Mode:",
+    foodTypeLabel: "Food Type:",
+    timeLabel: "Time:",
+    active: "Active",
+    manual: "Manual",
+    timer: "Timer"
   },
   rw: {
-    title: "Timer yo Guteka Intwari",
+    title: "Murakaza neza kuri Four yo Guteka ya Elektroniki",
     foodType: "Ubwoko bw'ibiryo:",
     weight: "Uburemere (gramu):",
     manualTime: "Igihe cy'ubwenge (iminota):",
@@ -39,17 +49,27 @@ const translations = {
     currentTemperature: "Ubushyuhe bwo kugeza ubu:",
     weightPlaceholder: "urugero: 500",
     timePlaceholder: "urugero: 10",
-    rice: "Umuceri",
+    bread: "Umugati",
     chicken: "Inkoko",
     potatoes: "Ibirayi",
+    pizza: "Pizza",
     other: "Ibindi",
-    language: "Ururimi"
+    language: "Ururimi",
+    status: "Imiterere",
+    cookingStatus: "Guteka:",
+    systemInfo: "Amakuru ya Sisitemu",
+    mode: "Uburyo:",
+    foodTypeLabel: "Ubwoko bw'ibiryo:",
+    timeLabel: "Igihe:",
+    active: "Bikora",
+    manual: "Ubwenge",
+    timer: "Timer"
   }
 };
 
 export default function CookingTimer() {
   const [language, setLanguage] = useState<'en' | 'rw'>('en');
-  const [food, setFood] = useState<string>("rice");
+  const [food, setFood] = useState<string>("bread");
   const [weight, setWeight] = useState<string>("");
   const [manualTime, setManualTime] = useState<string>("");
   const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
@@ -74,12 +94,14 @@ export default function CookingTimer() {
 
     if (food === "other") {
       t = parseFloat(manualTime);
-    } else if (food === "rice") {
-      t = w * 0.06;
+    } else if (food === "bread") {
+      t = w * 0.04; // Bread cooks faster
     } else if (food === "chicken") {
       t = w * 0.12;
     } else if (food === "potatoes") {
       t = w * 0.08;
+    } else if (food === "pizza") {
+      t = w * 0.05; // Pizza cooking time
     }
 
     if (!isNaN(t) && t > 0) {
@@ -101,9 +123,21 @@ export default function CookingTimer() {
       if (!res.ok) throw new Error("Failed to fetch status");
       const data = await res.json();
 
+      const wasCooking = isCooking;
       setRelayOn(data.relay);
       setManualMode(data.manualMode);
       setIsCooking(data.cooking);
+
+      // Check if cooking just finished
+      if (wasCooking && !data.cooking && !data.manualMode) {
+        // Show completion notification
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Cooking Complete! 🎉', {
+            body: 'Your food is ready!',
+            icon: '🍽️'
+          });
+        }
+      }
 
       if (data.manualMode) {
         // Manual mode: count up elapsed time
@@ -165,14 +199,19 @@ export default function CookingTimer() {
       });
       const result = await res.text();
       if (res.ok) {
-        alert("Cooking started on ESP32!");
+        // Show notification instead of alert
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Cooking Started!', {
+            body: 'Your food is now cooking on the ESP32',
+            icon: '🍳'
+          });
+        }
         fetchStatus();
       } else {
-        alert("Failed to start cooking: " + result);
+        console.error("Failed to start cooking:", result);
       }
     } catch (error) {
       console.error("Error starting cooking:", error);
-      alert("Failed to communicate with ESP32");
     }
   };
 
@@ -182,20 +221,32 @@ export default function CookingTimer() {
       const res = await fetch(`http://${ESP32_IP}/stop-cooking`);
       const result = await res.text();
       if (res.ok) {
-        alert("Cooking stopped");
+        // Show notification instead of alert
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Cooking Stopped!', {
+            body: 'Cooking has been stopped',
+            icon: '⏹️'
+          });
+        }
         fetchStatus();
         if (manualIntervalRef.current) {
           clearInterval(manualIntervalRef.current);
           manualIntervalRef.current = null;
         }
       } else {
-        alert("Failed to stop cooking: " + result);
+        console.error("Failed to stop cooking:", result);
       }
     } catch (error) {
       console.error("Error stopping cooking:", error);
-      alert("Failed to stop cooking");
     }
   };
+
+  // Request notification permission on component mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   // Poll status every 1 second
   useEffect(() => {
@@ -240,33 +291,33 @@ export default function CookingTimer() {
             {/* Header with Language Switcher */}
             <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
               <div className="flex justify-between items-center mb-4">
-                <h1 className="text-2xl font-bold text-gray-800">{t.title}</h1>
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-600">{t.language}:</span>
-                  <div className="flex bg-gray-100 rounded-lg p-1">
-                    <button
-                      onClick={() => setLanguage('en')}
-                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                        language === 'en' 
-                          ? 'bg-blue-500 text-white shadow-sm' 
-                          : 'text-gray-600 hover:text-gray-800'
-                      }`}
-                    >
-                      EN
-                    </button>
-                    <button
-                      onClick={() => setLanguage('rw')}
-                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                        language === 'rw' 
-                          ? 'bg-blue-500 text-white shadow-sm' 
-                          : 'text-gray-600 hover:text-gray-800'
-                      }`}
-                    >
-                      RW
-                    </button>
-                  </div>
+              <h1 className="text-2xl font-bold text-gray-800">{t.title}</h1>
+              <div className="flex items-center space-x-1">
+                <span className="text-xs text-gray-500">{t.language}:</span>
+                <div className="flex bg-gray-100 rounded-md p-0.5">
+                  <button
+                    onClick={() => setLanguage('en')}
+                    className={`px-1.5 py-0.5 w-12 rounded text-xs font-medium transition-colors ${
+                      language === 'en' 
+                        ? 'bg-blue-500 text-white shadow-sm' 
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    EN
+                  </button>
+                  <button
+                    onClick={() => setLanguage('rw')}
+                    className={`px-1.5 py-0.5 w-12 rounded text-xs font-medium transition-colors ${
+                      language === 'rw' 
+                        ? 'bg-blue-500 text-white shadow-sm' 
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    RW
+                  </button>
                 </div>
               </div>
+            </div>
 
               {/* Food Type Selection */}
               <div className="mb-6">
@@ -284,9 +335,10 @@ export default function CookingTimer() {
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
                   disabled={relayOn}
                 >
-                  <option value="rice">{t.rice}</option>
+                  <option value="bread">{t.bread}</option>
                   <option value="chicken">{t.chicken}</option>
                   <option value="potatoes">{t.potatoes}</option>
+                  <option value="pizza">{t.pizza}</option>
                   <option value="other">{t.other}</option>
                 </select>
               </div>
@@ -362,9 +414,9 @@ export default function CookingTimer() {
             <div className="sticky top-8">
               {/* Status Indicators */}
               <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
-                <h2 className="text-lg font-bold text-gray-800 mb-4">Status</h2>
+                <h2 className="text-lg font-bold text-gray-800 mb-4">{t.status}</h2>
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm font-medium text-gray-600">Cooking:</span>
+                  <span className="text-sm font-medium text-gray-600">{t.cookingStatus}</span>
                   <div className={`flex items-center space-x-2 ${
                     relayOn ? 'text-green-600' : 'text-red-600'
                   }`}>
@@ -372,7 +424,7 @@ export default function CookingTimer() {
                       relayOn ? 'bg-green-500' : 'bg-red-500'
                     }`}></div>
                     <span className="font-semibold">
-                      {relayOn ? (manualMode ? 'Manual Mode' : 'Active') : t.cookingOff}
+                      {relayOn ? (manualMode ? t.manual : t.active) : t.cookingOff}
                     </span>
                   </div>
                 </div>
@@ -391,23 +443,23 @@ export default function CookingTimer() {
 
               {/* Additional Status Info */}
               <div className="bg-white rounded-2xl shadow-xl p-6">
-                <h2 className="text-lg font-bold text-gray-800 mb-4">System Info</h2>
+                <h2 className="text-lg font-bold text-gray-800 mb-4">{t.systemInfo}</h2>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Mode:</span>
+                    <span className="text-sm text-gray-600">{t.mode}</span>
                     <span className="font-semibold text-gray-800">
-                      {manualMode ? 'Manual' : 'Timer'}
+                      {manualMode ? t.manual : t.timer}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Food Type:</span>
+                    <span className="text-sm text-gray-600">{t.foodTypeLabel}</span>
                     <span className="font-semibold text-gray-800 capitalize">
                       {t[food as keyof typeof t]}
                     </span>
                   </div>
                   {countdown !== null && (
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Time:</span>
+                      <span className="text-sm text-gray-600">{t.timeLabel}</span>
                       <span className="font-semibold text-gray-800">
                         {formatTime(countdown)}
                       </span>
