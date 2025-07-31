@@ -119,7 +119,7 @@ export default function CookingTimer() {
   // Fetch status from ESP32
   const fetchStatus = async () => {
     try {
-      const res = await fetch(`http://${ESP32_IP}/status`);
+      const res = await fetch(`https://${ESP32_IP}/status`);
       if (!res.ok) throw new Error("Failed to fetch status");
       const data = await res.json();
 
@@ -179,7 +179,7 @@ export default function CookingTimer() {
   // Fetch temperature from ESP32
   const fetchTemperature = async () => {
     try {
-      const res = await fetch(`http://${ESP32_IP}/temperature`);
+      const res = await fetch(`https://${ESP32_IP}/temperature`);
       if (!res.ok) throw new Error("Failed to fetch temperature");
       const temp = await res.text();
       setTemperature(temp);
@@ -192,7 +192,7 @@ export default function CookingTimer() {
   const startCooking = async () => {
     if (!estimatedTime) return;
     try {
-      const res = await fetch(`http://${ESP32_IP}/start-cooking`, {
+      const res = await fetch(`https://${ESP32_IP}/start-cooking`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: `seconds=${estimatedTime}`,
@@ -218,7 +218,7 @@ export default function CookingTimer() {
   // Stop cooking via web API
   const stopCooking = async () => {
     try {
-      const res = await fetch(`http://${ESP32_IP}/stop-cooking`);
+      const res = await fetch(`https://${ESP32_IP}/stop-cooking`);
       const result = await res.text();
       if (res.ok) {
         // Show notification instead of alert
