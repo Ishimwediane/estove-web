@@ -85,7 +85,7 @@ export default function CookingTimer() {
   const manualElapsedRef = useRef<number>(0);
   const manualIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const ESP32_IP = 'https://stronger-evaluated-workplace-sunny.trycloudflare.com';
+  const ESP32_IP = 'stronger-evaluated-workplace-sunny.trycloudflare.com';
 
   // Estimate cooking time based on food and weight
   const estimateTime = () => {
