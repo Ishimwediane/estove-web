@@ -32,7 +32,10 @@ const translations = {
     timeLabel: "Time:",
     active: "Active",
     manual: "Manual",
-    timer: "Timer"
+    timer: "Timer",
+    error: "Error",
+    success: "Success",
+    connecting: "Connecting..."
   },
   rw: {
     title: "Murakaza neza kuri Four yo Guteka ya Elektroniki",
@@ -63,7 +66,10 @@ const translations = {
     timeLabel: "Igihe:",
     active: "Bikora",
     manual: "Ubwenge",
-    timer: "Timer"
+    timer: "Timer",
+    error: "Ikosa",
+    success: "Intsinzi",
+    connecting: "Ihuza..."
   }
 };
 
@@ -78,6 +84,9 @@ export default function CookingTimer() {
   const [manualMode, setManualMode] = useState<boolean>(false);
   const [relayOn, setRelayOn] = useState<boolean>(false);
   const [temperature, setTemperature] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const t = translations[language];
 
@@ -85,7 +94,19 @@ export default function CookingTimer() {
   const manualElapsedRef = useRef<number>(0);
   const manualIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const ESP32_IP = 'stronger-evaluated-workplace-sunny.trycloudflare.com';
+  // Server API URL
+  const SERVER_URL = 'https://estove-server-1.onrender.com';
+
+  // Clear messages after 5 seconds
+  useEffect(() => {
+    if (error || success) {
+      const timer = setTimeout(() => {
+        setError(null);
+        setSuccess(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, success]);
 
   // Estimate cooking time based on food and weight
   const estimateTime = () => {
@@ -95,13 +116,13 @@ export default function CookingTimer() {
     if (food === "other") {
       t = parseFloat(manualTime);
     } else if (food === "bread") {
-      t = w * 0.04; // Bread cooks faster
+      t = w * 0.04;
     } else if (food === "chicken") {
       t = w * 0.12;
     } else if (food === "potatoes") {
       t = w * 0.08;
     } else if (food === "pizza") {
-      t = w * 0.05; // Pizza cooking time
+      t = w * 0.05;
     }
 
     if (!isNaN(t) && t > 0) {
@@ -109,38 +130,49 @@ export default function CookingTimer() {
       setEstimatedTime(seconds);
       setCountdown(null);
       setIsCooking(false);
+      setError(null);
     } else {
       setEstimatedTime(null);
       setCountdown(null);
       setIsCooking(false);
+      setError("Please enter valid weight/time values");
     }
   };
 
-  // Fetch status from ESP32
+  // Fetch latest status from server
   const fetchStatus = async () => {
     try {
-      const res = await fetch(`https://${ESP32_IP}/status`);
+      const res = await fetch(`${SERVER_URL}/api/stove-data/latest`);
       if (!res.ok) throw new Error("Failed to fetch status");
       const data = await res.json();
+
+      if (data.message === 'No data available') {
+        setRelayOn(false);
+        setManualMode(false);
+        setIsCooking(false);
+        setCountdown(null);
+        setTemperature(null);
+        return;
+      }
 
       const wasCooking = isCooking;
       setRelayOn(data.relay);
       setManualMode(data.manualMode);
       setIsCooking(data.cooking);
+      setTemperature(data.temperature ? `${data.temperature}` : null);
 
       // Check if cooking just finished
       if (wasCooking && !data.cooking && !data.manualMode) {
-        // Show completion notification
         if ('Notification' in window && Notification.permission === 'granted') {
           new Notification('Cooking Complete! 🎉', {
             body: 'Your food is ready!',
             icon: '🍽️'
           });
         }
+        setSuccess("Cooking completed successfully!");
       }
 
       if (data.manualMode) {
-        // Manual mode: count up elapsed time
         if (!manualIntervalRef.current) {
           manualElapsedRef.current = data.timeLeft;
           setCountdown(data.timeLeft);
@@ -150,14 +182,12 @@ export default function CookingTimer() {
           }, 1000);
         }
       } else {
-        // Timer mode: count down timeLeft
         if (manualIntervalRef.current) {
           clearInterval(manualIntervalRef.current);
           manualIntervalRef.current = null;
         }
         setCountdown(data.timeLeft > 0 ? data.timeLeft : null);
 
-        // If relay off or timeLeft 0, clear cooking states
         if (!data.relay || data.timeLeft === 0) {
           setIsCooking(false);
           setCountdown(null);
@@ -176,68 +206,121 @@ export default function CookingTimer() {
     }
   };
 
-  // Fetch temperature from ESP32
-  const fetchTemperature = async () => {
-    try {
-      const res = await fetch(`https://${ESP32_IP}/temperature`);
-      if (!res.ok) throw new Error("Failed to fetch temperature");
-      const temp = await res.text();
-      setTemperature(temp);
-    } catch {
-      setTemperature(null);
-    }
-  };
-
-  // Start cooking via web API
+  // Start cooking
   const startCooking = async () => {
     if (!estimatedTime) return;
+    
+    setLoading(true);
+    setError(null);
+    
     try {
-      const res = await fetch(`https://${ESP32_IP}/start-cooking`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: `seconds=${estimatedTime}`,
+      const res = await fetch(`${SERVER_URL}/api/start-cooking`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          seconds: estimatedTime,
+          foodType: food,
+          weight: weight
+        }),
       });
-      const result = await res.text();
+      
+      const result = await res.json();
+      
       if (res.ok) {
-        // Show notification instead of alert
         if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification('Cooking Started!', {
-            body: 'Your food is now cooking on the ESP32',
+          new Notification('Cooking Started! 🍳', {
+            body: `Cooking started for ${formatTime(estimatedTime)}`,
             icon: '🍳'
           });
         }
+        
+        setIsCooking(true);
+        setCountdown(estimatedTime);
+        setSuccess("Cooking started successfully!");
+        
+        // Refresh status to get latest data
         fetchStatus();
       } else {
         console.error("Failed to start cooking:", result);
+        setError(result.error || 'Failed to start cooking');
+        
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Cooking Start Failed! ❌', {
+            body: result.error || 'Failed to start cooking',
+            icon: '❌'
+          });
+        }
       }
     } catch (error) {
       console.error("Error starting cooking:", error);
+      setError('Network error - please check your connection');
+      
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Cooking Start Failed! ❌', {
+          body: 'Network error - please check your connection',
+          icon: '❌'
+        });
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Stop cooking via web API
+  // Stop cooking
   const stopCooking = async () => {
+    setLoading(true);
+    setError(null);
+    
     try {
-      const res = await fetch(`https://${ESP32_IP}/stop-cooking`);
-      const result = await res.text();
+      const res = await fetch(`${SERVER_URL}/api/stop-cooking`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      const result = await res.json();
+      
       if (res.ok) {
-        // Show notification instead of alert
         if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification('Cooking Stopped!', {
-            body: 'Cooking has been stopped',
+          new Notification('Cooking Stopped! ⏹️', {
+            body: 'Cooking stopped successfully',
             icon: '⏹️'
           });
         }
-        fetchStatus();
+        
+        setIsCooking(false);
+        setCountdown(null);
         if (manualIntervalRef.current) {
           clearInterval(manualIntervalRef.current);
           manualIntervalRef.current = null;
         }
+        
+        setSuccess("Cooking stopped successfully!");
+        
+        // Refresh status to get latest data
+        fetchStatus();
       } else {
         console.error("Failed to stop cooking:", result);
+        setError(result.error || 'Failed to stop cooking');
+        
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Cooking Stop Failed! ❌', {
+            body: result.error || 'Failed to stop cooking',
+            icon: '❌'
+          });
+        }
       }
     } catch (error) {
       console.error("Error stopping cooking:", error);
+      setError('Network error - please check your connection');
+      
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Cooking Stop Failed! ❌', {
+          body: 'Network error - please check your connection',
+          icon: '❌'
+        });
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -248,10 +331,10 @@ export default function CookingTimer() {
     }
   }, []);
 
-  // Poll status every 1 second
+  // Poll status every 2 seconds from server
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 1000);
+    const interval = setInterval(fetchStatus, 2000);
     return () => {
       clearInterval(interval);
       if (manualIntervalRef.current) {
@@ -261,14 +344,7 @@ export default function CookingTimer() {
     };
   }, []);
 
-  // Poll temperature every 3 seconds
-  useEffect(() => {
-    fetchTemperature();
-    const interval = setInterval(fetchTemperature, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Local countdown decrement for timer mode (optional)
+  // Local countdown decrement for timer mode
   useEffect(() => {
     if (isCooking && countdown !== null && !manualMode && countdown > 0) {
       const timer = setTimeout(() => setCountdown((prev) => (prev !== null ? prev - 1 : null)), 1000);
@@ -285,39 +361,51 @@ export default function CookingTimer() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 py-8 px-4">
       <div className="max-w-6xl mx-auto">
+        {/* Error and Success Messages */}
+        {error && (
+          <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+            <strong>{t.error}:</strong> {error}
+          </div>
+        )}
+        {success && (
+          <div className="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg">
+            <strong>{t.success}:</strong> {success}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Main Controls */}
           <div className="lg:col-span-2">
             {/* Header with Language Switcher */}
             <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
               <div className="flex justify-between items-center mb-4">
-              <h1 className="text-2xl font-bold text-gray-800">{t.title}</h1>
-              <div className="flex items-center space-x-1">
-                <span className="text-xs text-gray-500">{t.language}:</span>
-                <div className="flex bg-gray-100 rounded-md p-0.5">
-                  <button
-                    onClick={() => setLanguage('en')}
-                    className={`px-1.5 py-0.5 w-12 rounded text-xs font-medium transition-colors ${
-                      language === 'en' 
-                        ? 'bg-blue-500 text-white shadow-sm' 
-                        : 'text-gray-600 hover:text-gray-800'
-                    }`}
-                  >
-                    EN
-                  </button>
-                  <button
-                    onClick={() => setLanguage('rw')}
-                    className={`px-1.5 py-0.5 w-12 rounded text-xs font-medium transition-colors ${
-                      language === 'rw' 
-                        ? 'bg-blue-500 text-white shadow-sm' 
-                        : 'text-gray-600 hover:text-gray-800'
-                    }`}
-                  >
-                    RW
-                  </button>
+                <h1 className="text-2xl font-bold text-gray-800">{t.title}</h1>
+                <div className="flex items-center space-x-1">
+                  <span className="text-xs text-gray-500">{t.language}:</span>
+                  <div className="flex bg-gray-100 rounded-md p-0.5">
+                    <button
+                      onClick={() => setLanguage('en')}
+                      className={`px-1.5 py-0.5 w-12 rounded text-xs font-medium transition-colors ${
+                        language === 'en' 
+                          ? 'bg-blue-500 text-white shadow-sm' 
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      EN
+                    </button>
+                    <button
+                      onClick={() => setLanguage('rw')}
+                      className={`px-1.5 py-0.5 w-12 rounded text-xs font-medium transition-colors ${
+                        language === 'rw' 
+                          ? 'bg-blue-500 text-white shadow-sm' 
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      RW
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
               {/* Food Type Selection */}
               <div className="mb-6">
@@ -331,6 +419,7 @@ export default function CookingTimer() {
                     setEstimatedTime(null);
                     setCountdown(null);
                     setIsCooking(false);
+                    setError(null);
                   }}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
                   disabled={relayOn}
@@ -357,7 +446,10 @@ export default function CookingTimer() {
                 <input
                   type="number"
                   value={food !== "other" ? weight : manualTime}
-                  onChange={(e) => food !== "other" ? setWeight(e.target.value) : setManualTime(e.target.value)}
+                  onChange={(e) => {
+                    food !== "other" ? setWeight(e.target.value) : setManualTime(e.target.value);
+                    setError(null);
+                  }}
                   placeholder={food !== "other" ? t.weightPlaceholder : t.timePlaceholder}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
                   disabled={relayOn}
@@ -382,9 +474,10 @@ export default function CookingTimer() {
                 </p>
                 <button
                   onClick={startCooking}
-                  className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+                  disabled={loading}
+                  className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
-                  {t.startCooking}
+                  {loading ? t.connecting : t.startCooking}
                 </button>
               </div>
             )}
@@ -401,9 +494,10 @@ export default function CookingTimer() {
                 </div>
                 <button
                   onClick={stopCooking}
-                  className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+                  disabled={loading}
+                  className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
-                  {t.stopCooking}
+                  {loading ? t.connecting : t.stopCooking}
                 </button>
               </div>
             )}
@@ -473,4 +567,4 @@ export default function CookingTimer() {
       </div>
     </div>
   );
-}
+} 
